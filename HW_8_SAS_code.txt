@@ -1,0 +1,325 @@
+
+options ls=255 ps=1000 nocenter;
+
+
+%let PATH 	= 	/courses/u_northwestern.edu1/i_833463/c_3505/SAS_Data/;
+%let PATH 	= 	C:\NW\DATA;
+
+%let NAME	= 	MYDATA;
+%let LIB	=	&NAME..;
+
+*libname &NAME. "&PATH." access=readonly;
+libname &NAME. "&PATH.";
+
+
+
+%let INFILE		=	&LIB.european_employment;
+%let OUTFILE	=	OUTFILE;
+%let TEMPFILE	=	TEMPFILE;
+
+
+
+data &TEMPFILE.;
+set &INFILE.;
+	label AGR 	=	"Agriculture";
+	label MIN 	=	"Mining";
+	label MAN 	=	"Manufacturing";
+	label PS 	=	"Power and water supply";
+	label CON 	=	"Construction";
+	label SER	=	"Services";
+	label FIN 	=	"Finance";
+	label SPS 	=	"Social and personal services";
+	label TC 	=	"Transport and communications";
+
+FLAG_EFTA		=	GROUP in ('EFTA');
+FLAG_EU			=	GROUP in ('EU');
+FLAG_EASTERN	=	GROUP in ('Eastern');
+
+if FLAG_EU 		= 1	then FLAG_EU_EFTA = 1;
+if FLAG_EFTA 	= 1	then FLAG_EU_EFTA = 0;
+if FLAG_EASTERN	= 1	then FLAG_EU_EFTA = .;
+
+if GROUP in ('Other') then do;
+	FLAG_EFTA		=	.;
+	FLAG_EU			=	.;
+	FLAG_EASTERN	=	.;
+	FLAG_EU_EFTA	=	.;
+end;
+
+run;
+
+proc sort data=&TEMPFILE.;
+by GROUP;
+run;
+
+proc print data=&TEMPFILE.;
+run;
+
+proc contents data=&TEMPFILE.;
+run;
+
+
+ods graphics on;
+proc corr data=&TEMPFILE. nomiss plots=matrix(histogram nvar=all);
+var AGR	MIN	MAN	PS CON SER	FIN	SPS	TC	;
+run;
+ods graphics off;
+
+
+
+
+%macro SCATTER( X, Y );
+
+ods graphics on;
+proc sgplot data=&TEMPFILE.;
+title 'Scatterplot of Raw Data';
+scatter y=&Y. x=&X. / datalabel=country group=group;
+run; quit;
+ods graphics off;
+
+%mend;
+
+*%scatter( AGR	,	MIN );
+*%scatter( AGR	,	MAN );
+*%scatter( AGR	,	PS 	);
+*%scatter( AGR	,	CON );
+*%scatter( AGR	,	SER );
+*%scatter( AGR	,	FIN );
+*%scatter( AGR	,	SPS );
+*%scatter( AGR	,	TC 	);
+
+*%scatter( MIN	,	MAN );
+*%scatter( MIN	,	PS 	);
+*%scatter( MIN	,	CON );
+*%scatter( MIN	,	SER );
+*%scatter( MIN	,	FIN );
+*%scatter( MIN	,	SPS );
+*%scatter( MIN	,	TC 	);
+
+*%scatter( MAN	,	PS 	);
+*%scatter( MAN	,	CON );
+*%scatter( MAN	,	SER );
+*%scatter( MAN	,	FIN );
+*%scatter( MAN	,	SPS );
+*%scatter( MAN	,	TC 	);
+
+*%scatter( PS	,	CON );
+*%scatter( PS	,	SER );
+*%scatter( PS	,	FIN );
+*%scatter( PS	,	SPS );
+*%scatter( PS	,	TC 	);
+
+*%scatter( CON	,	SER );
+*%scatter( CON	,	FIN );
+*%scatter( CON	,	SPS );
+*%scatter( CON	,	TC 	);
+
+*%scatter( SER	,	FIN );
+*%scatter( SER	,	SPS );
+*%scatter( SER	,	TC 	);
+
+*%scatter( FIN	,	SPS );
+*%scatter( FIN	,	TC 	);
+
+*%scatter( SPS	,	TC 	);
+
+
+
+
+
+proc sort data=&TEMPFILE.;
+by descending FLAG_EFTA;
+run;
+
+proc means data=&TEMPFILE. mean median;
+class FLAG_EFTA;
+var AGR	MIN	MAN	PS	CON	SER	FIN	SPS	TC;
+run;
+
+proc logistic data=&TEMPFILE.;
+model FLAG_EFTA(event='1')	=	AGR	MIN;
+output out=&TEMPFILE. pred=pEFTA; 
+run;
+
+
+
+
+proc sort data=&TEMPFILE.;
+by descending FLAG_EU_EFTA;
+run;
+
+proc means data=&TEMPFILE. mean median;
+class FLAG_EU_EFTA;
+var AGR	MIN	MAN	PS	CON	SER	FIN	SPS	TC;
+run;
+
+proc logistic data=&TEMPFILE.;
+*model FLAG_EU_EFTA(event='1')	=	MIN	PS CON SER SPS TC ;
+model FLAG_EU_EFTA(event='1')	=	PS CON SER SPS TC ;
+output out=&TEMPFILE. pred=pEU_EFTA; 
+run;
+
+
+
+
+
+
+proc sort data=&TEMPFILE.;
+by descending FLAG_EU;
+run;
+
+proc logistic data=&TEMPFILE.;
+model FLAG_EU(event='1')	=	AGR	MIN	MAN	PS	CON	SER	FIN	SPS	TC /selection=FORWARD;
+output out=&TEMPFILE. pred=pEU; 
+run;
+
+
+
+
+proc sort data=&TEMPFILE.;
+by descending FLAG_EASTERN;
+run;
+
+proc logistic data=&TEMPFILE.;
+model FLAG_EASTERN(event='1')	=	AGR	MIN	MAN	PS	CON	SER	FIN	SPS	TC /selection=FORWARD;
+output out=&TEMPFILE. pred=pEASTERN; 
+run;
+
+
+
+proc print data=&TEMPFILE.;
+*where GROUP in ('Other');
+var COUNTRY GROUP pEFTA pEU pEU_EFTA pEASTERN;
+run;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+data &TEMPFILE.;
+set &INFILE.;
+	label AGR 	=	"Agriculture";
+	label MIN 	=	"Mining";
+	label MAN 	=	"Manufacturing";
+	label PS 	=	"Power and water supply";
+	label CON 	=	"Construction";
+	label SER	=	"Services";
+	label FIN 	=	"Finance";
+	label SPS 	=	"Social and personal services";
+	label TC 	=	"Transport and communications";
+run;
+
+
+
+
+title Principal Components Analysis using PROC PRINCOMP;
+proc princomp data=&TEMPFILE. out=pca_9components outstat=eigenvectors plots=all;
+run;
+
+		title "Principal Components Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=principal out=pca_factors
+		nfactors=9 score plots=scree;
+		run;
+
+		title "Iterated Principal Factor Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=prinit out=pfa_factors
+		nfactors=2 score plots=scree;
+		run;
+
+		title "Maximum Likelihood Factor Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=ml out=fa_ml
+		outstat=fa_ml_stats mineigen=0 priors=smc nfactors=2 score ;
+		run;
+
+		title "Unweighted Least Squares Factor Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=uls out=fa_uls
+		outstat=uls_stats mineigen=0 priors=smc nfactors=2 score ;
+		run;
+
+		title "A VARIMAX Rotation of a Unweighted Least Squares Factor Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=uls rotate=varimax out=uls_varimax
+		outstat=varimax_stats mineigen=0 priors=max nfactors=2 score
+		plots=(initloadings preloadings loadings scree) ;
+		run;
+
+		title "A PROMAX Rotation of a Unweighted Least Squares Factor Analysis using PROC FACTOR";
+		proc factor data=&TEMPFILE. method=uls rotate=promax out=uls_promax
+		outstat=promax_stats mineigen=0 priors=max nfactors=2 score
+		plots=(initloadings preloadings loadings scree) ;
+		run;
+
+
+
+
+
+
+
+
+
+
+ods graphics on;
+proc sgplot data=&TEMPFILE.;
+title 'Scatterplot of Raw Data: FIN*SER';
+scatter y=fin x=ser / datalabel=country group=group;
+run; quit;
+ods graphics off;
+
+ods graphics on;
+proc sgplot data=&TEMPFILE.;
+title 'Scatterplot of Raw Data: MAN*SER';
+scatter y=man x=ser / datalabel=country group=group;
+run; quit;
+ods graphics off;
+
+ods graphics on;
+proc cluster data=&TEMPFILE. method=average outtree=tree1 pseudo ccc plots=all;
+var fin ser;
+id country;
+run; quit;
+ods graphics off;
+
+ods graphics on;
+proc tree data=tree1 ncl=4 out=_4_clusters;
+copy fin ser;
+run; quit;
+ods graphics off;
+
+ods graphics on;
+proc tree data=tree1 ncl=3 out=_3_clusters;
+copy fin ser;
+run; quit;
+ods graphics off;
+
+
+proc print data=_4_clusters;
+run;
+
+proc print data=_3_clusters;
+run;
+
+proc sgplot data=_4_clusters;
+title 'Scatterplot of Raw Data: FIN*SER';
+scatter y=fin x=ser / datalabel=_NAME_ group=CLUSNAME;
+run; quit;
+ods graphics off;
+
+
+proc sgplot data=_3_clusters;
+title 'Scatterplot of Raw Data: FIN*SER';
+scatter y=fin x=ser / datalabel=_NAME_ group=CLUSNAME;
+run; quit;
+ods graphics off;
+
+
+
